@@ -1,59 +1,49 @@
+import streamlit as st
 import speech_recognition as sr
 import wikipedia
-import pyttsx3
+from gtts import gTTS
+import tempfile
+import os
 
-def speak(text):
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 170)
-    engine.say(text)
-    engine.runAndWait()
-    engine.stop()
+st.set_page_config(page_title="Audio-to-Audio Chatbot", layout="centered")
 
-def listen():
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Listening...")
-        r.adjust_for_ambient_noise(source, duration=0.5)
-        audio = r.listen(source)
+st.title("🎤 Audio-to-Audio Chatbot")
+st.write("Speak a question. The bot will answer using Wikipedia and speak back.")
+
+recognizer = sr.Recognizer()
+
+audio_file = st.audio_input("Click and speak")
+
+if audio_file is not None:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        tmp.write(audio_file.getvalue())
+        audio_path = tmp.name
+
+    with sr.AudioFile(audio_path) as source:
+        audio_data = recognizer.record(source)
 
     try:
-        text = r.recognize_google(audio)
-        print("You said:", text)
-        return text.lower()
-    except sr.UnknownValueError:
-        speak("Sorry, I did not understand.")
-        return ""
-    except sr.RequestError:
-        speak("Speech recognition error.")
-        return ""
+        user_text = recognizer.recognize_google(audio_data)
+        st.success(f"You said: {user_text}")
 
-def get_answer(query):
-    try:
         wikipedia.set_lang("en")
-        return wikipedia.summary(query, sentences=2)
+        answer = wikipedia.summary(user_text, sentences=3)
+        st.info(answer)
+
+        tts = gTTS(answer)
+        tts_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name
+        tts.save(tts_path)
+
+        st.audio(tts_path, format="audio/mp3")
+
     except wikipedia.exceptions.DisambiguationError:
-        return "Your question is too broad. Please be more specific."
+        st.error("Your question is too broad. Please be more specific.")
+
     except wikipedia.exceptions.PageError:
-        return "I could not find information on that."
-    except Exception:
-        return "Something went wrong."
+        st.error("No Wikipedia page found.")
 
-def main():
-    speak("Live audio to audio chatbot started. Ask me a question.")
+    except Exception as e:
+        st.error("Sorry, I could not understand the audio.")
 
-    while True:
-        query = listen()
-
-        if query == "":
-            continue
-
-        if "exit" in query or "stop" in query or "quit" in query:
-            speak("Goodbye. Have a nice day.")
-            break
-
-        answer = get_answer(query)
-        print("Bot:", answer)
-        speak(answer)
-
-if __name__ == "__main__":
-    main()
+    finally:
+        os.remove(audio_path)
