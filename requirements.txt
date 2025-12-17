@@ -1,4 +1,5 @@
-gTTS
-requests
 streamlit
+SpeechRecognition
+pyttsx3
 wikipedia
+requests
